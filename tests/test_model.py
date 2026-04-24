@@ -7,14 +7,14 @@ from sklearn.datasets import load_iris
 from sklearn.ensemble import RandomForestClassifier
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-from src.train_model import train_and_save_model
+from src.train_model import train_and_save_model, MODEL_DIR
 
 
 class TestModelTraining:
 
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
-        os.makedirs("models", exist_ok=True)
+        os.makedirs(MODEL_DIR, exist_ok=True)
         yield
 
     def test_train_model_success(self):
@@ -29,12 +29,14 @@ class TestModelTraining:
 
     def test_model_file_created(self):
         train_and_save_model()
-        assert os.path.exists("models/iris_model.pkl")
-        assert os.path.getsize("models/iris_model.pkl") > 0
+        model_path = os.path.join(MODEL_DIR, "iris_model.pkl")
+        assert os.path.exists(model_path)
+        assert os.path.getsize(model_path) > 0
 
     def test_model_can_be_loaded(self):
         train_and_save_model()
-        with open("models/iris_model.pkl", "rb") as f:
+        model_path = os.path.join(MODEL_DIR, "iris_model.pkl")
+        with open(model_path, "rb") as f:
             model = pickle.load(f)
         assert isinstance(model, RandomForestClassifier)
         assert hasattr(model, 'predict')
@@ -42,7 +44,8 @@ class TestModelTraining:
 
     def test_loaded_model_can_predict(self):
         train_and_save_model()
-        with open("models/iris_model.pkl", "rb") as f:
+        model_path = os.path.join(MODEL_DIR, "iris_model.pkl")
+        with open(model_path, "rb") as f:
             model = pickle.load(f)
         iris = load_iris()
         X_sample = iris.data[:5]
@@ -57,7 +60,8 @@ class TestModelTraining:
 
     def test_model_parameters(self):
         train_and_save_model()
-        with open("models/iris_model.pkl", "rb") as f:
+        model_path = os.path.join(MODEL_DIR, "iris_model.pkl")
+        with open(model_path, "rb") as f:
             model = pickle.load(f)
         assert model.n_estimators == 100
         assert model.random_state == 42

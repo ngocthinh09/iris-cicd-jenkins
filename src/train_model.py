@@ -5,7 +5,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import os
 
-MODEL_DIR = "models"
+MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
 MODEL_NAME = "iris_model.pkl"
 
 

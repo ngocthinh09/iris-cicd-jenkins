@@ -1,0 +1,29 @@
+# Python bytecode
+**/__pycache__/
+**/*.py[cod]
+
+# Caches
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Tests & Documentation
+tests/
+docs/
+*.md
+
+# Local data/models
+# models/
