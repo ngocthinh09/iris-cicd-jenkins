@@ -2,9 +2,9 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = 'ngocthinh09/iris-ml-api'
-        DOCKER_TAG = '${BUILD_NUMBER}'
-        DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
+        DOCKER_IMAGE = "ngocthinh09/iris-ml-api"
+        DOCKER_TAG = "${BUILD_NUMBER}"
+        DOCKER_CREDENTIALS_ID = "dockerhub-credentials"
     }
 
     stages {
