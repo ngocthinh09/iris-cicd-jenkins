@@ -1,0 +1,12 @@
+model:
+    model_dir: "models"
+    model_name: "iris_model.pkl"
+    
+metadata:
+    title_app: "Iris Classification API"
+    version: "1.0.0"
+    description: "API for Iris Classification"
+
+server:
+    port: 8000
+    host: "127.0.0.1"
