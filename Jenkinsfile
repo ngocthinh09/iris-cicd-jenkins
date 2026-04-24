@@ -32,8 +32,7 @@ pipeline {
                 echo 'Training ML model...'
                 sh '''
                     . venv/bin/activate
-                    cd src
-                    python train_model.py
+                    python src/train_model.py
                     cd ..
                 '''
             }

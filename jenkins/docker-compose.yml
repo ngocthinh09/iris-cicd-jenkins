@@ -3,7 +3,7 @@ version: '3.8'
 services:
   jenkins:
     image: jenkins/jenkins:lts
-    container_name: jenkin-server
+    container_name: jenkins-server
     privileged: true
     user: root
     ports:
