@@ -40,7 +40,12 @@
         src: ../../jenkins/docker-compose.yml
         dest: /home/{{ ansible_user }}/jenkins/docker-compose.yml
 
+    - name: Copy Dockerfile
+      copy:
+        src: ../../jenkins/Dockerfile
+        dest: /home/{{ ansible_user }}/jenkins/Dockerfile
+
     - name: Start Jenkins using Docker Compose
       shell:
-        cmd: docker compose up -d
+        cmd: docker compose up -d --build
         chdir: /home/{{ ansible_user }}/jenkins
