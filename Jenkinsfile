@@ -80,6 +80,19 @@ pipeline {
             }
         }
 
+        stage('Deploy to GKE') {
+            steps {
+                withCredentials([file(credentialsId: 'gcp-auth', variable: 'GCP_KEY_FILE')]) {
+                    script {
+                        sh "gcloud auth activate-service-account --key-file=${GCP_KEY_FILE}"
+                        sh "gcloud config set project jenkinscicd-494404"
+                        sh "gcloud container clusters get-credentials rag-cluster --zone us-central1-a"
+                        sh "helm upgrade --install iris-app ./helm/iris-app --set image.tag=${env.BUILD_NUMBER}"
+                    }
+                }
+            }
+        }
+
         stage('Cleanup') {
             steps {
                 echo 'Cleaning up workspace...'

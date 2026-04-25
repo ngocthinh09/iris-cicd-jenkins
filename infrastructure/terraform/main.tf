@@ -50,3 +50,29 @@ resource "google_compute_firewall" "jenkins_firewall" {
 	source_ranges = [ "0.0.0.0/0" ]
 	source_tags = [ "jenkins-port" ]
 }
+
+resource "google_container_cluster" "primary" {
+	name = "iris-cluster"
+	location = "asia-southeast1-a"
+
+	initial_node_count = 1
+	remove_default_node_pool = true
+
+	node_config {
+		machine_type = "e2-medium"
+	}
+}
+
+resource "google_container_node_pool" "primary_nodes" {
+	name = "main-node-pool"
+	location = "asia-southeast1-a"
+	cluster = google_container_cluster.primary.name
+	node_count = 1
+
+	node_config {
+		machine_type = "e2-medium"
+		oauth_scopes = [
+			"https://www.googleapis.com/auth/cloud-platform"
+		]
+	}
+}
