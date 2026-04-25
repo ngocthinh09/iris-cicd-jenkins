@@ -1,0 +1,46 @@
+---
+- name: Configure Jenkins Server using Docker Compose
+  hosts: jenkins_servers
+  become: true
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: true
+
+    - name: Install base packages
+      apt:
+        name:
+          [
+            apt-transport-https,
+            ca-certificates,
+            curl,
+            gnupg,
+            lsb-release,
+            python3-pip,
+          ]
+        state: present
+
+    - name: Install Docker engine
+      shell: curl -fsSL https://get.docker.com | sh
+
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: true
+
+    - name: Create project directory
+      file:
+        path: /home/{{ ansible_user }}/jenkins
+        state: directory
+        mode: "0755"
+
+    - name: Copy docker-compose.yml
+      copy:
+        src: ../../jenkins/docker-compose.yml
+        dest: /home/{{ ansible_user }}/jenkins/docker-compose.yml
+
+    - name: Start Jenkins using Docker Compose
+      shell:
+        cmd: docker compose up -d
+        chdir: /home/{{ ansible_user }}/jenkins

@@ -1,3 +1,9 @@
 .pytest_cache
 __pycache__
 *.exe
+*.json
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+.vscode
