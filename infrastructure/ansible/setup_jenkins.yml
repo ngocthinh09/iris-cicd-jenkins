@@ -15,6 +15,7 @@
           - curl
           - gnupg
           - software-properties-common
+          - python3-venv
         state: present
 
     - name: Create keyrings directory
