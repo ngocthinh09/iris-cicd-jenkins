@@ -1,264 +1,252 @@
-# 🛠️ Jenkins UI Setup Guide
+# 🚀 Iris MLOps CI/CD: From Infrastructure to Deployment
 
-## Step 1: Run Jenkins Container and Login Configuration Instructions
+This project demonstrates a complete MLOps pipeline for the Iris dataset, covering infrastructure provisioning, automated configuration, CI/CD, and deployment to Kubernetes on Google Cloud Platform (GCP).
 
-Run this command in your terminal (PowerShell or Git Bash on Windows):
+## 🏗️ Project Architecture
+The pipeline follows these steps:
+1.  **Infrastructure**: Provisioned using **Terraform** (Jenkins VM & GKE Cluster).
+2.  **Configuration**: Automated using **Ansible** (Install Docker, Jenkins, etc.).
+3.  **CI/CD**: Orchestrated by **Jenkins** (Train -> Test -> Build -> Push -> Deploy).
+4.  **Deployment**: Managed via **Helm** on **Google Kubernetes Engine (GKE)**.
 
-**Run Docker Compose:**
-```powershell
-# Navigate to the jenkins directory
-cd jenkins
+---
 
-# Start Jenkins
-docker-compose up -d
+## 🛠️ Phase 1: Prerequisites & Setup
 
-# Verify that the container is running
-docker ps
+Before you begin, ensure you have the following installed and configured:
+
+### 1. Tools Required
+*   [Google Cloud SDK (gcloud)](https://cloud.google.com/sdk/docs/install)
+*   [Terraform](https://developer.hashicorp.com/terraform/downloads)
+*   [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) (Linux or WSL recommended)
+*   [Git](https://git-scm.com/downloads)
+*   [Docker](https://www.docker.com/products/docker-desktop/)
+
+### 2. Google Cloud Platform (GCP) Setup
+1.  **Create a Project**: Create a new project in the [GCP Console](https://console.cloud.google.com/).
+2.  **Enable APIs**: Enable Compute Engine, Kubernetes Engine, and Cloud Resource Manager APIs.
+3.  **Service Account**:
+    *   Go to **IAM & Admin** > **Service Accounts**.
+    *   Create a service account with **Editor** or **Owner** role.
+    *   Create and download a JSON Key. Rename it to `gcp-key.json` and place it in `infrastructure/terraform/`.
+    *   **WARNING**: Do NOT commit this file to GitHub. It is already added to `.gitignore`.
+
+### 3. SSH Key for VM Access
+Create an SSH key pair to allow Ansible and Terraform to access your Jenkins VM:
+```bash
+ssh-keygen -t rsa -f ~/.ssh/gcp_ssh_key -C "ubuntu"
+```
+By default, the project uses `ubuntu` as the user and `~/.ssh/gcp_ssh_key.pub` as the key. You can customize these in `infrastructure/terraform/terraform.tfvars`:
+*   `ssh_user`: Your preferred SSH username.
+*   `ssh_pub_key_path`: The path to your public key file.
+
+---
+
+## 🛰️ Phase 2: Infrastructure Provisioning (Terraform)
+
+In this phase, we will use Terraform to create the Google Cloud resources: a Compute Engine VM for Jenkins and a Google Kubernetes Engine (GKE) cluster.
+
+### 1. Initialize Terraform
+Navigate to the terraform directory and initialize the provider plugins:
+```bash
+cd infrastructure/terraform
+terraform init
 ```
 
-**Wait 30-60 seconds** for Jenkins to complete its startup.
-
----
-
-## Step 1.1: Log in to Jenkins
-
-Access: **http://localhost:8080**
-
-### **First-time Jenkins Setup**
-
-If this is your first time, Jenkins will ask for the **Initial Admin Password**:
-
-```powershell
-# Retrieve the initial admin password
-docker exec jenkins-server cat /var/jenkins_home/secrets/initialAdminPassword
+### 2. Review and Customize
+Before applying, open `infrastructure/terraform/terraform.tfvars` and set your GCP Project ID:
+```hcl
+gcp_project_id = "your-actual-project-id"
+```
+Then, verify the plan:
+```bash
+terraform plan
 ```
 
-**Example Output:**
+### 3. Apply the Infrastructure
+Create the resources on GCP:
+```bash
+terraform apply -auto-approve
 ```
-a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+*Note: This process may take 5-10 minutes as it provisions a GKE cluster.*
+
+### 4. Note the Outputs
+After a successful apply, Terraform will output the public IP of your Jenkins server.
+*   **Jenkins VM IP**: You will need this for the next phase (Ansible configuration).
+*   **GKE Cluster**: The cluster `iris-cluster` will be ready for deployment.
+
+---
+
+## 🛠️ Phase 3: Server Configuration (Ansible)
+
+Now that the VM is running, we will use Ansible to automatically install Docker, Jenkins, and other dependencies.
+
+### 1. Update Inventory
+Navigate to the ansible directory and open `inventory.ini`. Replace the placeholder IP with your Jenkins VM IP:
+```ini
+[jenkins_server]
+jenkins_vm ansible_host=<YOUR_VM_IP> ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/gcp_ssh_key
 ```
 
-**Steps:**
-1. Copy the password from the terminal.
-2. Paste it into the **Administrator password** field on the Jenkins UI.
-3. Click **Continue**.
-4. Select **Install suggested plugins** (or **Select plugins to install** for customization).
-5. Wait for the plugins to install.
-6. Create an **Admin User** (username, password, email).
-7. Click **Save and Continue** → **Start using Jenkins**.
+### 2. Run the Playbook
+Execute the Ansible playbook to configure the server:
+```bash
+cd infrastructure/ansible
+ansible-playbook -i inventory.ini setup_jenkins.yml
+```
+*This playbook will install and configure:*
+*   **Java 21** (Required for Jenkins)
+*   **Python 3.12** (For training and testing)
+*   **Docker Engine**
+*   **Jenkins** (Installed directly on the host)
+*   **Google Cloud SDK** (`gcloud`, `kubectl`, GKE auth plugin)
+*   **Helm** (For GKE deployment)
+*   **Permissions**: Automatically adds the `jenkins` user to the `docker` group.
+
+### 3. Verify Jenkins Access
+Open your browser and navigate to:
+`http://<YOUR_VM_IP>:8080`
+
+If you see the Jenkins login screen, your server is ready!
 
 ---
 
-## Step 2: Install Plugins
+## 🔑 Phase 4: Jenkins Initial Setup & Credentials
 
-1. Go to **Manage Jenkins** (left sidebar).
-2. Click **Plugins** (or **Manage Plugins**).
-3. Select the **Available plugins** tab.
-4. Search for and check the following plugins:
-   - **Git plugin** 
-   - **GitHub plugin**
-   - **Docker plugin**
-   - **Docker Pipeline**
-   - **Pipeline**
-   - **Pipeline: Stage View**
+This phase is critical for connecting Jenkins to your code (GitHub), your registry (Docker Hub), and your deployment target (GKE).
 
-5. Click **Install** (no restart required).
-6. Wait for the installation to complete.
+### 1. Unlock Jenkins
+Jenkins is secured with a temporary password. To retrieve it, run this command on your **local terminal**:
+```bash
+ssh -i ~/.ssh/gcp_ssh_key ubuntu@<YOUR_VM_IP> "sudo cat /var/lib/jenkins/secrets/initialAdminPassword"
+```
+Copy the password and paste it into the Jenkins UI at `http://<YOUR_VM_IP>:8080`.
 
----
+### 2. Initial Setup Wizard
+1.  **Plugins**: Select **"Install suggested plugins"**.
+2.  **Admin User**: Create your admin account (Username, Password, Full Name, Email).
+3.  **Instance Configuration**: Confirm the Jenkins URL and click **"Save and Finish"**.
 
-## Step 3: Configure Docker Hub Credentials 
+### 3. Install Additional Plugins
+Ensure the following plugins are installed for the MLOps pipeline:
+1.  Go to **Manage Jenkins** > **Plugins** > **Available plugins**.
+2.  Search and install:
+    *   `Docker`
+    *   `Docker Pipeline`
+    *   `GCloud SDK`
+    *   `Kubernetes`
+3.  Click **"Install without restart"**.
 
-1. Go to **Manage Jenkins** → **Credentials**.
-2. Click on the **(global)** domain.
-3. Click **Add Credentials** (left side).
-4. Fill in the information:
-   - **Kind**: `Username with password`
-   - **Scope**: `Global`
-   - **Username**: `<your-dockerhub-username>`
-   - **Password**: `<your-dockerhub-password or access-token>`
-   - **ID**: `dockerhub-credentials` (IMPORTANT - must match this name exactly)
-   - **Description**: `Docker Hub Credentials`
-5. Click **Create**.
+### 4. Configure Credentials (CRITICAL)
+You need to add two sets of credentials for the pipeline to work:
 
-### How to get a Docker Hub Access Token:
-1. Log in to https://hub.docker.com.
-2. Go to **Account Settings** → **Security** → **Access Tokens**.
-3. Click **Generate New Token**.
-4. Copy the token and use it as your password.
+#### A. Docker Hub Credentials
+1.  Go to **Manage Jenkins** > **Credentials** > **(global)** > **Add Credentials**.
+2.  **Kind**: `Username with password`.
+3.  **Username**: Your Docker Hub username.
+4.  **Password**: Your Docker Hub Access Token (or password).
+5.  **ID**: `dockerhub-credentials` (MUST match this ID exactly).
+6.  **Description**: `Docker Hub Login`.
+7.  Click **Create**.
 
----
-
-## Step 4: Create a Pipeline Job 
-
-1. From the Dashboard, click **New Item** (left side).
-2. Fill in the information:
-   - **Enter an item name**: `iris-ml-cicd` (or your preferred name)
-   - **Type**: Select **Pipeline**.
-3. Click **OK**.
+#### B. GCP Service Account (for GKE)
+1.  Go to **Add Credentials** again.
+2.  **Kind**: `Secret file`.
+3.  **File**: Upload the `gcp-key.json` file you downloaded in Phase .
+4.  **ID**: `gcp-auth` (MUST match the ID in your Jenkinsfile).
+5.  Click **Create**.
 
 ---
 
-## Step 5: Configure the Pipeline 
+## 🚀 Phase 5: Pipeline Configuration
 
-### A. General Section:
-- Check **GitHub project**.
-- **Project url**: `https://github.com/<your-username>/<your-repo>/`
+In this phase, we will create the actual CI/CD job in Jenkins and link it to your GitHub repository.
 
-### B. Build Triggers:
-- Check **GitHub hook trigger for GITScm polling**.
-  (To receive triggers from GitHub webhooks)
+### 1. Create a New Pipeline Job
+1.  From the Jenkins Dashboard, click **"New Item"**.
+2.  **Name**: `iris-ml-cicd`.
+3.  **Type**: Select **"Pipeline"**.
+4.  Click **"OK"**.
 
-### C. Pipeline Section:
-- **Definition**: Select `Pipeline script from SCM`.
-- **SCM**: Select `Git`.
-- **Repository URL**: `https://github.com/<your-username>/<your-repo>.git`
-- **Credentials**: 
-  - For public repos: leave empty.
-  - For private repos: Add GitHub credentials.
-- **Branch Specifier**: `*/main` (or `*/master` if using the master branch).
-- **Script Path**: `Jenkinsfile`
+### 2. General Settings
+1.  In the **General** tab, check the box **"GitHub project"**.
+2.  **Project url**: `https://github.com/<YOUR_USERNAME>/iris-cicd-jenkins/`.
 
-### D. Save Configuration:
-Click **Save** at the bottom of the page.
+### 3. Configure Pipeline Source
+Scroll down to the **Pipeline** section:
+1.  **Definition**: Select **"Pipeline script from SCM"**.
+2.  **SCM**: Select **"Git"**.
+3.  **Repository URL**: `https://github.com/<YOUR_USERNAME>/iris-cicd-jenkins.git`.
+4.  **Branch Specifier**: `*/main` (or `*/master`).
+5.  **Script Path**: `Jenkinsfile`.
+6.  Click **"Save"**.
+
+### 4. Setup GitHub Webhook (Auto-Trigger)
+To make Jenkins build automatically whenever you push code:
+
+#### In GitHub:
+1.  Go to your repository **Settings** > **Webhooks** > **Add webhook**.
+2.  **Payload URL**: `http://<YOUR_VM_IP>:8080/github-webhook/`.
+3.  **Content type**: `application/json`.
+4.  **Events**: `Just the push event`.
+5.  Click **"Add webhook"**.
+
+#### In Jenkins (Job Config):
+1.  Go back to your `iris-ml-cicd` job > **Configure**.
+2.  Under **Build Triggers**, check **"GitHub hook trigger for GITScm polling"**.
+3.  Click **"Save"**.
 
 ---
 
-## Step 6: Update Jenkinsfile with Docker Hub Username 
+## 🏁 Phase 6: Running the Pipeline & Verification
 
-1. Open the file `Jenkinsfile`.
-2. Find the line:
-   ```groovy
-   DOCKER_IMAGE = 'your-dockerhub-username/iris-ml-api'
-   ```
-3. Replace `your-dockerhub-username` with your actual username:
-   ```groovy
-   DOCKER_IMAGE = 'myusername/iris-ml-api'
-   ```
-4. Save the file.
+### 1. Trigger the Build
+You can trigger the pipeline in two ways:
+*   **Manual**: Click **"Build Now"** on the left sidebar of your `iris-ml-cicd` job.
+*   **Automated**: Make a small change to any file (e.g., `README.md`) and push it to GitHub:
+    ```bash
+    git add .
+    git commit -m "Test automated pipeline"
+    git push origin main
+    ```
 
----
+### 2. Monitor Progress
+Open the job and click on the current build. You can watch the **Pipeline Steps** or **Console Output**:
+*   ✅ **Checkout**: Pulls code from GitHub.
+*   ✅ **Train Model**: Runs `src/train_model.py`.
+*   ✅ **Test Model/API**: Runs `pytest`.
+*   ✅ **Build & Push**: Creates Docker image and pushes to Docker Hub.
+*   ✅ **Deploy to GKE**: Uses **Helm** to deploy the app to your cluster.
 
-## Step 7: Push Code to GitHub 
+### 3. Verify Deployment
+Once the pipeline finishes successfully, verify the app is running on GKE.
+
+**Note**: You must be authenticated with GCP to run these commands.
+*   **On your local machine**: Run `gcloud auth login`.
+*   **Using Service Account**: Run `gcloud auth activate-service-account --key-file=path/to/gcp-key.json`.
 
 ```bash
-# Initialize git (if not already done)
-git init
+# Get credentials for your cluster
+gcloud container clusters get-credentials iris-cluster --zone <YOUR_ZONE> --project <YOUR_PROJECT_ID>
 
-# Add remote repository
-git remote add origin https://github.com/<your-username>/<your-repo>.git
+# Check if pods are running
+kubectl get pods
 
-# Add and commit
-git add .
-git commit -m "Setup CI/CD pipeline with Jenkins"
-
-# Push to GitHub
-git branch -M main
-git push -u origin main
+# Get the External IP of the Service
+kubectl get svc iris-app
 ```
 
----
+### 4. Test the ML API
+Copy the **EXTERNAL-IP** from the `kubectl get svc` command and open it in your browser:
+`http://<EXTERNAL_IP>/docs`
 
-## Step 8: Setup GitHub Webhook 
-
-### Option A: Public Jenkins (with a domain or public IP)
-1. Go to your GitHub repository → **Settings** → **Webhooks** → **Add webhook**.
-2. Fill in:
-   - **Payload URL**: `http://your-jenkins-url:8080/github-webhook/`
-   - **Content type**: `application/json`
-   - **Which events**: `Just the push event`
-   -  Active
-3. Click **Add webhook**.
-
-### Option B: Local Jenkins (using ngrok) 
-
-**If Jenkins is running on your local machine:**
-
-1. Download ngrok: https://ngrok.com/download.
-2. Run ngrok:
-   ```bash
-   ngrok http 8080
-   ```
-3. Copy the ngrok URL (e.g., `https://abc123.ngrok.io`).
-4. In the GitHub webhook settings, use: `https://abc123.ngrok.io/github-webhook/`
-
-**Note**: The URL will change each time you restart ngrok (on the free version).
+You can now use the FastAPI Swagger UI to send prediction requests to your Iris model!
 
 ---
 
-## Step 9: Test Pipeline Manually 
-
-1. Go to the `iris-ml-cicd` job in Jenkins.
-2. Click **Build Now**.
-3. View **Console Output** to track progress.
-4. The pipeline will run through the following stages:
-   - ✅ Checkout
-   - ✅ Setup Python Environment
-   - ✅ Train Model
-   - ✅ Test Model
-   - ✅ Test API
-   - ✅ Build Docker Image
-   - ✅ Push to Docker Hub
-   - ✅ Cleanup
-
----
-
-## Step 10: Test GitHub Webhook 
-
-1. Make a change to any file in the repo (e.g., README.md).
-2. Commit and push:
-   ```bash
-   git add .
-   git commit -m "Test webhook trigger"
-   git push
-   ```
-3. Jenkins will **AUTOMATICALLY** trigger a build!
-4. Check the Jenkins Dashboard.
-
----
-
-## Troubleshooting
-
-### Jenkins not building Docker image:
+## 🧹 Cleanup
+To avoid ongoing GCP costs after you're done:
 ```bash
-# Check if Jenkins has access to Docker
-docker exec jenkins-server docker ps
+cd infrastructure/terraform
+terraform destroy -auto-approve
 ```
-
-### Permission denied when building:
-```bash
-docker exec -u root jenkins-server chmod 666 /var/run/docker.sock
-docker exec -u root jenkins-server chown -R jenkins:jenkins /var/jenkins_home
-```
-
-### GitHub webhook not triggering:
-- Check webhook delivery in GitHub Settings → Webhooks → Recent Deliveries.
-- Ensure the Jenkins URL is accessible from the internet (use ngrok if local).
-- Ensure "GitHub hook trigger" is checked in the job configuration.
-
-### Build fails at "Push to Docker Hub" stage:
-- Verify the credentials ID is exactly `dockerhub-credentials`.
-- Log in to Docker Hub and check if the token is still valid.
-- Try logging in manually: `docker login`.
-
-### Python tests fail:
-```bash
-# Check if requirements.txt is complete
-# Check Python version (requires >= 3.8)
-```
-
----
-
-## Results
-
-After the setup is complete:
-1. Every code push automatically triggers a Jenkins build.
-2. The model is trained and tested.
-3. The API is tested.
-4. The Docker image is built and pushed to Docker Hub.
-5. You can pull and run it: 
-   ```bash
-   docker pull your-username/iris-ml-api:latest
-   docker run -p 8000:8000 your-username/iris-ml-api:latest
-   ```
-6. Access: http://localhost:8000/docs to test the API.

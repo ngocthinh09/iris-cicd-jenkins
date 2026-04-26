@@ -24,7 +24,7 @@ pipeline {
             steps {
                 echo 'Setting up Python Environment...'
                 sh '''
-                    rm -rf venv
+                    set -e
                     python3.12 -m venv venv
                     . venv/bin/activate
                     pip install --upgrade pip
