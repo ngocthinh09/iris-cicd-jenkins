@@ -54,6 +54,7 @@ resource "google_compute_firewall" "jenkins_firewall" {
 resource "google_container_cluster" "primary" {
 	name = "iris-cluster"
 	location = "asia-southeast1-a"
+	deletion_protection = false
 
 	initial_node_count = 1
 	remove_default_node_pool = true
@@ -75,4 +76,4 @@ resource "google_container_node_pool" "primary_nodes" {
 			"https://www.googleapis.com/auth/cloud-platform"
 		]
 	}
-}
+}	

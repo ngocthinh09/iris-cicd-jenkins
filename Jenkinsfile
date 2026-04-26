@@ -5,6 +5,11 @@ pipeline {
         DOCKER_IMAGE = "ngocthinh09/iris-ml-api"
         DOCKER_TAG = "${BUILD_NUMBER}"
         DOCKER_CREDENTIALS_ID = "dockerhub-credentials"
+
+        GKE_CLUSTER = "iris-cluster"
+        GKE_ZONE = "asia-southeast1-a"
+        GCP_PROJECT = "jenkinscicd-494404"
+        GCP_CREDENTIALS_ID = "gcp-auth"
     }
 
     stages {
@@ -82,13 +87,19 @@ pipeline {
 
         stage('Deploy to GKE') {
             steps {
-                withCredentials([file(credentialsId: 'gcp-auth', variable: 'GCP_KEY_FILE')]) {
-                    script {
-                        sh "gcloud auth activate-service-account --key-file=${GCP_KEY_FILE}"
-                        sh "gcloud config set project jenkinscicd-494404"
-                        sh "gcloud container clusters get-credentials rag-cluster --zone us-central1-a"
-                        sh "helm upgrade --install iris-app ./helm/iris-app --set image.tag=${env.BUILD_NUMBER}"
-                    }
+                echo 'Starting deployment to Google Kubernetes Engine...'
+                withCredentials([file(credentialsId: "${GCP_CREDENTIALS_ID}", variable: 'GCP_KEY_FILE')]) {
+                    sh '''
+                        gcloud auth activate-service-account --key-file=${GCP_KEY_FILE}
+    
+                        gcloud container clusters get-credentials ${GKE_CLUSTER} --zone ${GKE_ZONE} --project ${GCP_PROJECT}
+    
+                        helm upgrade --install iris-app ./helm/iris-app \
+                            --namespace default \
+                            --set image.repository=${DOCKER_IMAGE} \
+                            --set image.tag=${DOCKER_TAG} \
+                            --wait
+                    '''
                 }
             }
         }
