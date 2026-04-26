@@ -1,0 +1,5 @@
+gcp_project_id   = "jenkinscicd-494404"
+gcp_region       = "asia-southeast1"
+gcp_zone         = "asia-southeast1-a"
+ssh_user         = "ubuntu"
+ssh_pub_key_path = "~/.ssh/gcp_ssh_key.pub"

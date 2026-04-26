@@ -7,11 +7,31 @@ terraform {
 	}
 }
 
+variable "gcp_project_id" {
+	default = "jenkinscicd-494404"
+}
+
+variable "gcp_region" {
+	default = "asia-southeast1"
+}
+
+variable "gcp_zone" {
+	default = "asia-southeast1-a"
+}
+
+variable "ssh_user" {
+	default = "ubuntu"
+}
+
+variable "ssh_pub_key_path" {
+	default = "~/.ssh/gcp_ssh_key.pub"
+}
+
 provider "google" {
 	credentials = file("gcp-key.json")
-	project = "jenkinscicd-494404"
-	region = "asia-southeast1"
-	zone = "asia-southeast1-a"
+	project = var.gcp_project_id
+	region = var.gcp_region
+	zone = var.gcp_zone
 }
 
 resource "google_compute_instance" "jenkins_vm" {
@@ -32,7 +52,7 @@ resource "google_compute_instance" "jenkins_vm" {
 	}
 
 	metadata = {
-		ssh-keys = "ngocthinh09:${file("~/.ssh/gcp_ssh_key.pub")}"
+		ssh-keys = "${var.ssh_user}:${file(var.ssh_pub_key_path)}"
 	}
 
 	tags = [ "http-server", "jenkins-port" ]
@@ -53,7 +73,7 @@ resource "google_compute_firewall" "jenkins_firewall" {
 
 resource "google_container_cluster" "primary" {
 	name = "iris-cluster"
-	location = "asia-southeast1-a"
+	location = var.gcp_zone
 	deletion_protection = false
 
 	initial_node_count = 1
@@ -66,7 +86,7 @@ resource "google_container_cluster" "primary" {
 
 resource "google_container_node_pool" "primary_nodes" {
 	name = "main-node-pool"
-	location = "asia-southeast1-a"
+	location = var.gcp_zone
 	cluster = google_container_cluster.primary.name
 	node_count = 1
 
