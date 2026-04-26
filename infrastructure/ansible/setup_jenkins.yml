@@ -18,6 +18,19 @@
           - python3-venv
         state: present
 
+    - name: Add deadsnakes PPA for newer Python versions
+      apt_repository:
+        repo: 'ppa:deadsnakes/ppa'
+        state: present
+
+    - name: Install Python 3.12 Full
+      apt:
+        update_cache: true
+        name:
+          - python3.12
+          - python3.12-full
+        state: present
+
     - name: Create keyrings directory
       file:
         path: /etc/apt/keyrings
